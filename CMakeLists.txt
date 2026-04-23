@@ -20,7 +20,6 @@ if(EMSCRIPTEN)
         add_compile_options(-fexceptions)
         add_link_options(-fexceptions)
 
-        # Memory configuration
         add_compile_options(-sALLOW_MEMORY_GROWTH=1)
         add_compile_options(-sMAXIMUM_MEMORY=64MB)
         add_link_options(-sALLOW_MEMORY_GROWTH=1)
