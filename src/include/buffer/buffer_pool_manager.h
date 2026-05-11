@@ -14,6 +14,7 @@
 
 #include <list>
 #include <memory>
+#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -31,31 +32,6 @@ class BufferPoolManager;
 class ReadPageGuard;
 class WritePageGuard;
 
-/**
- * @brief A helper class for `BufferPoolManager` that manages a frame of memory and related metadata.
- *
- * This class represents headers for frames of memory that the `BufferPoolManager` stores pages of data into. Note that
- * the actual frames of memory are not stored directly inside a `FrameHeader`, rather the `FrameHeader`s store pointer
- * to the frames and are stored separately them.
- *
- * ---
- *
- * Something that may (or may not) be of interest to you is why the field `data_` is stored as a vector that is
- * allocated on the fly instead of as a direct pointer to some pre-allocated chunk of memory.
- *
- * In a traditional production buffer pool manager, all memory that the buffer pool is intended to manage is allocated
- * in one large contiguous array (think of a very large `malloc` call that allocates several gigabytes of memory up
- * front). This large contiguous block of memory is then divided into contiguous frames. In other words, frames are
- * defined by an offset from the base of the array in page-sized (4 KB) intervals.
- *
- * In BusTub, we instead allocate each frame on its own (via a `std::vector<char>`) in order to easily detect buffer
- * overflow with address sanitizer. Since C++ has no notion of memory safety, it would be very easy to cast a page's
- * data pointer into some large data type and start overwriting other pages of data if they were all contiguous.
- *
- * If you would like to attempt to use more efficient data structures for your buffer pool manager, you are free to do
- * so. However, you will likely benefit significantly from detecting buffer overflow in future projects (especially
- * project 2).
- */
 class FrameHeader {
   friend class BufferPoolManager;
   friend class ReadPageGuard;
@@ -81,6 +57,9 @@ class FrameHeader {
   /** @brief The dirty flag. */
   bool is_dirty_;
 
+  /** @brief The page currently stored in this frame, if any. */
+  std::optional<page_id_t> page_id_{std::nullopt};
+
   /**
    * @brief A pointer to the data of the page that this frame holds.
    *
@@ -97,16 +76,6 @@ class FrameHeader {
    */
 };
 
-/**
- * @brief The declaration of the `BufferPoolManager` class.
- *
- * As stated in the writeup, the buffer pool is responsible for moving physical pages of data back and forth from
- * buffers in main memory to persistent storage. It also behaves as a cache, keeping frequently used pages in memory for
- * faster access, and evicting unused or cold pages back out to storage.
- *
- * Make sure you read the writeup in its entirety before attempting to implement the buffer pool manager. You also need
- * to have completed the implementation of both the `ArcReplacer` and `DiskManager` classes.
- */
 class BufferPoolManager {
  public:
   BufferPoolManager(size_t num_frames, DiskManager *disk_manager, LogManager *log_manager = nullptr);
@@ -127,10 +96,11 @@ class BufferPoolManager {
   auto GetPinCount(page_id_t page_id) -> std::optional<size_t>;
 
  private:
-  /** @brief The number of frames in the buffer pool. */
+  auto FlushFrameUnsafe(const std::shared_ptr<FrameHeader> &frame) -> bool;
+  auto AcquireFrameForPage(page_id_t page_id, AccessType access_type) -> std::shared_ptr<FrameHeader>;
+
   const size_t num_frames_;
 
-  /** @brief The next page ID to be allocated.  */
   std::atomic<page_id_t> next_page_id_;
 
   /**

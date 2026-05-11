@@ -84,7 +84,18 @@ class ArcReplacer {
   [[maybe_unused]] size_t replacer_size_;
   std::mutex latch_;
 
-  // TODO(student): You can add member variables / functions as you like.
+  std::unordered_map<frame_id_t, std::list<frame_id_t>::iterator> mru_pos_;
+  std::unordered_map<frame_id_t, std::list<frame_id_t>::iterator> mfu_pos_;
+  std::unordered_map<page_id_t, std::list<page_id_t>::iterator> mru_ghost_pos_;
+  std::unordered_map<page_id_t, std::list<page_id_t>::iterator> mfu_ghost_pos_;
+
+  auto EvictFromList(std::list<frame_id_t> &list, ArcStatus list_status, std::list<page_id_t> &ghost_list,
+                     ArcStatus ghost_status) -> std::optional<frame_id_t>;
+  void AddToGhostList(std::list<page_id_t> &ghost_list, std::unordered_map<page_id_t, std::list<page_id_t>::iterator> &ghost_pos,
+                      page_id_t page_id, ArcStatus ghost_status);
+  void RemoveAliveFrame(frame_id_t frame_id);
+  void RemoveGhostPage(page_id_t page_id);
+  void TrimGhostLists();
 };
 
 }  // namespace bustub
